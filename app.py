@@ -4,15 +4,18 @@ import plotly.graph_objects as go
 import os
 
 # Set page configuration
-st.set_page_config(page_title="Training Data Analysis", layout="wide")
-st.title("Training Data Analysis")
+st.set_page_config(page_title="Lin's Training Dashboard", layout="wide")
+st.title("Lin's Training Dashboard")
 
 # Load and prepare data
 @st.cache_data
 def load_data():
     try:
-        data_path = os.path.join('data', 'training-data.csv')
-        data = pd.read_csv(data_path)
+        data = pd.read_csv('data/training-data.csv')
+        required_columns = ['ID', 'Exercise', 'Reps', 'Load', 'Weight_Used', 'Good', 'Timestamp']
+        if not all(col in data.columns for col in required_columns):
+            st.error("Missing required columns in the data")
+            st.stop()
         data = data.dropna(subset=['Exercise', 'Reps', 'Load', 'Weight_Used', 'Good'])
         return data
     except Exception as e:
@@ -22,7 +25,7 @@ def load_data():
 data = load_data()
 
 # Create tabs for S, B, D exercises
-tab_s, tab_b, tab_d = st.tabs(["S", "B", "D"])
+tab_s, tab_b, tab_d = st.tabs(["SQUAT", "BENCH", "DEADLIFT"])
 
 def get_rep_range(reps):
     if reps == 1:
@@ -61,46 +64,51 @@ def create_exercise_plots(exercise_data, exercise_name):
                 range_data = rep_range_data[rep_range_data['Load_Range'] == load_range]
                 
                 if len(range_data) > 0:
-                    # Sort by timestamp and create sequence
-                    range_data = range_data.sort_values('Timestamp').reset_index(drop=True)
-                    range_data['Sequence'] = range_data.index + 1
+                    # Sort by ID and create sequence
+                    range_data = range_data.sort_values('ID').reset_index(drop=True)
+                    range_data['Sequence'] = range(1, len(range_data) + 1)
                     
                     # Create figure with single trendline
                     fig = go.Figure()
                     
+                    # Add the line and points
                     fig.add_trace(go.Scatter(
                         x=range_data['Sequence'],
                         y=range_data['Weight_Used'],
-                        mode='lines+markers',
-                        showlegend=False,  # Remove legend
+                        mode='lines+markers+text',
+                        showlegend=False,
                         line=dict(color='blue'),
                         marker=dict(
                             color=range_data['Good'].apply(lambda x: 'red' if x == 'n' else 'blue'),
                             size=8
                         ),
+                        text=range_data['Timestamp'],
+                        textposition="top right",
+                        textfont=dict(size=10),
                         hovertemplate=(
-                            "Reps: %{customdata[0]}<br>" +
-                            "Load: %{customdata[1]}<br>" +
+                            "ID: %{customdata[0]}<br>" +
+                            "Reps: %{customdata[1]}<br>" +
+                            "RPE: %{customdata[2]}<br>" +
                             "Weight: %{y} kg<br>" +
-                            "Good: %{customdata[2]}<br>" +
-                            "Timestamp: %{customdata[3]}" +
+                            "Good: %{customdata[3]}" +
                             "<extra></extra>"
                         ),
-                        customdata=range_data[['Reps', 'Load', 'Good', 'Timestamp']].values
+                        customdata=range_data[['ID', 'Reps', 'Load', 'Good']].values
                     ))
                     
                     fig.update_layout(
-                        title=f"Load {load_range}",
+                        title=f"RPE {load_range}",
                         xaxis_title="Sequence",
                         yaxis_title="Weight Used (kg)",
-                        showlegend=False,  # Remove legend
+                        showlegend=False,
                         height=400,
                         xaxis=dict(
                             tickmode='linear',
                             tick0=1,
                             dtick=1,
                             tickformat='d'
-                        )
+                        ),
+                        margin=dict(t=50, r=50)
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
@@ -119,4 +127,3 @@ with tab_b:
 with tab_d:
     d_data = data[data["Exercise"] == "D"]
     create_exercise_plots(d_data, "D")
-    
